@@ -11,7 +11,7 @@ function update(){
 }
 function renderEdges(){
  const paths=document.createDocumentFragment();
- for(const edge of model.edges){const a=positions.get(edge.from),b=positions.get(edge.to);if(!a||!b)continue;const active=model.selected===edge.from||model.selected===edge.to,color=active?'blue':'yellow';const path=document.createElementNS(svgNS,'path');path.setAttribute('d',arrowGeometry(a,b,model.edges.some(e=>e.from===edge.to&&e.to===edge.from)));path.setAttribute('stroke',active?'#56b5ff':'#f4d351');path.setAttribute('marker-end',`url(#arrow-${color})`);path.setAttribute('class',`edge${active?' active':''}`);paths.append(path);}
+ for(const edge of model.edges){if(!positions.has(edge.from)||!positions.has(edge.to))continue;const a=imageBounds(edge.from),b=imageBounds(edge.to);const active=model.selected===edge.from||model.selected===edge.to,color=active?'blue':'yellow';const path=document.createElementNS(svgNS,'path');path.setAttribute('d',arrowGeometry(a,b,model.edges.some(e=>e.from===edge.to&&e.to===edge.from)));path.setAttribute('stroke',active?'#56b5ff':'#f4d351');path.setAttribute('marker-end',`url(#arrow-${color})`);path.setAttribute('class',`edge${active?' active':''}`);paths.append(path);}
  $('paths').replaceChildren(paths);
 }
 function place(name){const p=positions.get(name),el=elements.get(name);el.style.left=`${p.x}px`;el.style.top=`${p.y}px`;}

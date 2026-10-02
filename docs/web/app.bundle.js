@@ -58,12 +58,23 @@ class FoodWebModel{
  undo(){return this.edges.pop();}
  clear(){this.edges=[];this.cancel();}
 }
-function boundary(rect,dx,dy){if(Math.abs(dx)+Math.abs(dy)<0.001)return {x:rect.x+rect.w/2,y:rect.y-5};const factor=1/Math.max(Math.abs(dx)/(rect.w/2+5),Math.abs(dy)/(rect.h/2+5));return {x:rect.x+rect.w/2+dx*factor,y:rect.y+rect.h/2+dy*factor};}
+function boundary(rect,dx,dy){
+ const cx=rect.x+rect.w/2,cy=rect.y+rect.h/2;
+ if(Math.hypot(dx,dy)<0.001)return {x:cx,y:cy};
+ const factor=1/Math.max(Math.abs(dx)/(rect.w/2),Math.abs(dy)/(rect.h/2));
+ return {x:cx+dx*factor,y:cy+dy*factor};
+}
 function arrowGeometry(a,b,reverse){
- const dx=b.x+b.w/2-a.x-a.w/2,dy=b.y+b.h/2-a.y-a.h/2,len=Math.hypot(dx,dy)||1;
- const bend=reverse?24:0;
- const cx=(a.x+a.w/2+b.x+b.w/2)/2-dy/len*bend,cy=(a.y+a.h/2+b.y+b.h/2)/2+dx/len*bend;
- const start=boundary(a,cx-a.x-a.w/2,cy-a.y-a.h/2),end=boundary(b,cx-b.x-b.w/2,cy-b.y-b.h/2);
+ const ax=a.x+a.w/2,ay=a.y+a.h/2,bx=b.x+b.w/2,by=b.y+b.h/2;
+ const dx=bx-ax,dy=by-ay,len=Math.hypot(dx,dy)||1;
+ const bend=reverse?Math.min(24,len/4):0;
+ const cx=(ax+bx)/2-dy/len*bend,cy=(ay+by)/2+dx/len*bend;
+ let start=boundary(a,cx-ax,cy-ay),end=boundary(b,cx-bx,cy-by);
+ // If bounds overlap, clipped endpoints can cross and reverse the arrow.
+ // Fall back to an interior segment that always progresses from source to target.
+ if((end.x-start.x)*dx+(end.y-start.y)*dy<=0){
+  start={x:ax+dx*.35,y:ay+dy*.35};end={x:ax+dx*.65,y:ay+dy*.65};
+ }
  return `M ${start.x} ${start.y} Q ${cx} ${cy} ${end.x} ${end.y}`;
 }
 
@@ -78,7 +89,7 @@ function update(){
 }
 function renderEdges(){
  const paths=document.createDocumentFragment();
- for(const edge of model.edges){const a=positions.get(edge.from),b=positions.get(edge.to);if(!a||!b)continue;const active=model.selected===edge.from||model.selected===edge.to,color=active?'blue':'yellow';const path=document.createElementNS(svgNS,'path');path.setAttribute('d',arrowGeometry(a,b,model.edges.some(e=>e.from===edge.to&&e.to===edge.from)));path.setAttribute('stroke',active?'#56b5ff':'#f4d351');path.setAttribute('marker-end',`url(#arrow-${color})`);path.setAttribute('class',`edge${active?' active':''}`);paths.append(path);}
+ for(const edge of model.edges){if(!positions.has(edge.from)||!positions.has(edge.to))continue;const a=imageBounds(edge.from),b=imageBounds(edge.to);const active=model.selected===edge.from||model.selected===edge.to,color=active?'blue':'yellow';const path=document.createElementNS(svgNS,'path');path.setAttribute('d',arrowGeometry(a,b,model.edges.some(e=>e.from===edge.to&&e.to===edge.from)));path.setAttribute('stroke',active?'#56b5ff':'#f4d351');path.setAttribute('marker-end',`url(#arrow-${color})`);path.setAttribute('class',`edge${active?' active':''}`);paths.append(path);}
  $('paths').replaceChildren(paths);
 }
 function place(name){const p=positions.get(name),el=elements.get(name);el.style.left=`${p.x}px`;el.style.top=`${p.y}px`;}

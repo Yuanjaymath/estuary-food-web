@@ -12,6 +12,7 @@ export class FoodWebModel{
  select(name){this.selected=name;if(!this.pending){this.pending=name;return 'first';}if(this.pending===name)return 'self';const from=this.pending;this.pending=null;if(this.edges.some(e=>e.from===from&&e.to===name))return 'duplicate';this.edges.push({from,to:name});return 'added';}
  cancel(){this.pending=null;this.selected=null;}
  undo(){return this.edges.pop();}
+ remove(edge){const index=this.edges.indexOf(edge);if(index<0)return null;return this.edges.splice(index,1)[0];}
  clear(){this.edges=[];this.cancel();}
 }
 function boundary(rect,dx,dy){

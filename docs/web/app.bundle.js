@@ -56,6 +56,7 @@ class FoodWebModel{
  select(name){this.selected=name;if(!this.pending){this.pending=name;return 'first';}if(this.pending===name)return 'self';const from=this.pending;this.pending=null;if(this.edges.some(e=>e.from===from&&e.to===name))return 'duplicate';this.edges.push({from,to:name});return 'added';}
  cancel(){this.pending=null;this.selected=null;}
  undo(){return this.edges.pop();}
+ remove(edge){const index=this.edges.indexOf(edge);if(index<0)return null;return this.edges.splice(index,1)[0];}
  clear(){this.edges=[];this.cancel();}
 }
 function boundary(rect,dx,dy){
@@ -80,16 +81,23 @@ function arrowGeometry(a,b,reverse){
 
 const $=id=>document.getElementById(id),model=new FoodWebModel(),positions=new Map(),elements=new Map();let species=[],drag=null,initialized=false,resizeTimer;
 let W=117.5,H=107.5;
+let selectedEdge=null;
 const svgNS='http://www.w3.org/2000/svg';
 function status(message){$('status').textContent=message;}
 function update(){
+ if(selectedEdge&&!model.edges.includes(selectedEdge))selectedEdge=null;
+ $('delete-edge').disabled=!selectedEdge;
  for(const [name,el] of elements){el.classList.toggle('selected',model.selected===name);el.classList.toggle('pending',model.pending===name);el.setAttribute('aria-pressed',String(model.selected===name));}
  $('count').textContent=`${model.edges.length} 條連線`;$('undo').disabled=!model.edges.length;$('clear').disabled=!model.edges.length;$('cancel').disabled=!model.selected&&!model.pending;
  renderEdges();
 }
 function renderEdges(){
  const paths=document.createDocumentFragment();
- for(const edge of model.edges){if(!positions.has(edge.from)||!positions.has(edge.to))continue;const a=imageBounds(edge.from),b=imageBounds(edge.to);const active=model.selected===edge.from||model.selected===edge.to,color=active?'blue':'yellow';const path=document.createElementNS(svgNS,'path');path.setAttribute('d',arrowGeometry(a,b,model.edges.some(e=>e.from===edge.to&&e.to===edge.from)));path.setAttribute('stroke',active?'#56b5ff':'#f4d351');path.setAttribute('marker-end',`url(#arrow-${color})`);path.setAttribute('class',`edge${active?' active':''}`);paths.append(path);}
+ for(const edge of model.edges){if(!positions.has(edge.from)||!positions.has(edge.to))continue;const a=imageBounds(edge.from),b=imageBounds(edge.to);const active=model.selected===edge.from||model.selected===edge.to,color=active?'blue':'yellow';const path=document.createElementNS(svgNS,'path');path.setAttribute('d',arrowGeometry(a,b,model.edges.some(e=>e.from===edge.to&&e.to===edge.from)));path.setAttribute('stroke',selectedEdge===edge?'#ff9d54':active?'#56b5ff':'#f4d351');path.setAttribute('marker-end',`url(#arrow-${color})`);path.setAttribute('class',`edge${active?' active':''}${selectedEdge===edge?' chosen':''}`);paths.append(path);
+ const hit=document.createElementNS(svgNS,'path');hit.setAttribute('d',path.getAttribute('d'));hit.setAttribute('class','edge-hit');hit.setAttribute('tabindex','0');hit.setAttribute('role','button');hit.setAttribute('aria-label',`選取連線：${edge.from} → ${edge.to}`);hit.setAttribute('aria-pressed',String(selectedEdge===edge));
+ const choose=()=>{model.cancel();selectedEdge=edge;update();status(`已選取「${edge.from} → ${edge.to}」，按「刪除選取連線」或 Delete 移除。`);};
+ hit.addEventListener('click',choose);hit.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();choose();}});paths.append(hit);
+ }
  $('paths').replaceChildren(paths);
 }
 function place(name){const p=positions.get(name),el=elements.get(name);el.style.left=`${p.x}px`;el.style.top=`${p.y}px`;}
@@ -160,6 +168,7 @@ function showDetails(name){
  panel.replaceChildren(picture,content);panel.scrollTop=0;
 }
 function select(name){
+ selectedEdge=null;
  const first=model.pending,result=model.select(name);showDetails(name);update();
  if(result==='first')status(`已選起點「${name}」，請點選另一張圖卡作為終點。`);
  if(result==='self')status('不能連到自己，請選另一張圖卡。');
@@ -180,7 +189,10 @@ function endDrag(cancelled=false){
  else if(action.moved)status(`已移動「${action.name}」，連線已跟隨更新。`);
  else select(action.name);
 }
-function cancel(){if(drag)endDrag(true);model.cancel();update();status('已取消選取。點選一張圖卡開始新的連線。');}
+function cancel(){if(drag)endDrag(true);selectedEdge=null;model.cancel();update();status('已取消選取。點選一張圖卡開始新的連線。');}
+function deleteSelectedEdge(){const edge=model.remove(selectedEdge);selectedEdge=null;update();if(edge)status(`已刪除「${edge.from} → ${edge.to}」。其餘連線保留。`);}
+$('delete-edge').addEventListener('click',deleteSelectedEdge);
+document.addEventListener('keydown',e=>{if((e.key==='Delete'||e.key==='Backspace')&&selectedEdge&&!e.target.matches('input,textarea,[contenteditable="true"]')){e.preventDefault();deleteSelectedEdge();}});
 $('cancel').addEventListener('click',cancel);
 $('undo').addEventListener('click',()=>{const e=model.undo();update();if(e)status(`已復原「${e.from} → ${e.to}」。${model.pending?'請選取目前起點的終點。':'可繼續建立新連線。'}`);});
 $('clear').addEventListener('click',()=>{model.clear();update();status('已清除全部連線。點選起點重新開始。');});

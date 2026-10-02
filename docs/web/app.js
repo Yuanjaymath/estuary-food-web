@@ -15,6 +15,14 @@ function renderEdges(){
  $('paths').replaceChildren(paths);
 }
 function place(name){const p=positions.get(name),el=elements.get(name);el.style.left=`${p.x}px`;el.style.top=`${p.y}px`;}
+function imageBounds(name){
+ const p=positions.get(name),img=elements.get(name).querySelector('img');
+ const box=img.getBoundingClientRect(),board=$('board').getBoundingClientRect();
+ // object-fit:contain can leave empty space inside the image element.
+ const ratio=img.naturalWidth&&img.naturalHeight?Math.min(box.width/img.naturalWidth,box.height/img.naturalHeight):1;
+ const w=img.naturalWidth?img.naturalWidth*ratio:box.width,h=img.naturalHeight?img.naturalHeight*ratio:box.height;
+ return {x:box.left-board.left+(box.width-w)/2,y:box.top-board.top+(box.height-h)/2,w,h};
+}
 function arrange(){
  if(drag)endDrag(true);
  const view=$('viewport');
@@ -58,7 +66,7 @@ function moveDrag(event){
 }
 function endDrag(cancelled=false){
  if(!drag)return;const action=drag;drag=null;const el=elements.get(action.name);el.classList.remove('dragging');if(el.hasPointerCapture(action.id))el.releasePointerCapture(action.id);
- const collision=action.moved&&[...positions].some(([name,p])=>name!==action.name&&overlaps(positions.get(action.name),p,4));
+ const collision=action.moved&&[...positions.keys()].some(name=>name!==action.name&&overlaps(imageBounds(action.name),imageBounds(name)));
  if(cancelled||collision){positions.set(action.name,action.original);place(action.name);renderEdges();if(collision)status('圖卡不能重疊，已回到拖曳前的位置。');}
  else if(action.moved)status(`已移動「${action.name}」，連線已跟隨更新。`);
  else select(action.name);
@@ -74,7 +82,7 @@ async function init(){
  $('loading').hidden=false;$('loading').textContent='正在載入河口圖卡…';$('shuffle').disabled=true;
  try{species=await loadSpecies();if(!species.length)throw new Error('small 資料夾中沒有 PNG 圖卡。');
   $('cards').replaceChildren();elements.clear();positions.clear();model.clear();
-  for(const item of species){const el=document.createElement('button');el.className='card';el.type='button';el.setAttribute('aria-label',`選取${item.name}`);const img=document.createElement('img');img.src=item.small;img.alt='';img.draggable=false;const name=document.createElement('span');name.className='name';name.textContent=item.name;el.append(img,name);
+  for(const item of species){const el=document.createElement('button');el.className='card';el.type='button';el.setAttribute('aria-label',`選取${item.name}`);const img=document.createElement('img');img.src=item.small;img.alt='';img.draggable=false;el.append(img);
    el.addEventListener('pointerdown',e=>beginDrag(e,item.name));el.addEventListener('pointermove',moveDrag);el.addEventListener('pointerup',e=>{if(drag?.id===e.pointerId)endDrag();});el.addEventListener('pointercancel',()=>endDrag(true));el.addEventListener('lostpointercapture',()=>{if(drag?.name===item.name)endDrag(true);});
    el.addEventListener('click',e=>{if(e.detail===0&&!drag)select(item.name);});elements.set(item.name,el);$('cards').append(el);
   }

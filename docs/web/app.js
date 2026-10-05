@@ -1,4 +1,4 @@
-import {loadSpecies,appendInline} from './data.js';
+import {loadSpecies,loadSpeciesImage,appendInline} from './data.js';
 import {FoodWebModel,layoutCards,overlaps,arrowGeometry} from './model.js';
 const $=id=>document.getElementById(id),model=new FoodWebModel(),positions=new Map(),elements=new Map();let species=[],drag=null,initialized=false,resizeTimer;
 let W=117.5,H=107.5;
@@ -22,12 +22,19 @@ function renderEdges(){
  $('paths').replaceChildren(paths);
 }
 function place(name){const p=positions.get(name),el=elements.get(name);el.style.left=`${p.x}px`;el.style.top=`${p.y}px`;}
+function createSpeciesPicture(item){
+ const canvas=document.createElement('canvas');canvas.className='species-image';
+ canvas.width=item.bitmap.naturalWidth;canvas.height=item.bitmap.naturalHeight;
+ canvas.setAttribute('role','img');canvas.setAttribute('aria-label',item.name);
+ canvas.getContext('2d').drawImage(item.bitmap,0,0);
+ return canvas;
+}
 function imageBounds(name){
- const p=positions.get(name),img=elements.get(name).querySelector('img');
+ const p=positions.get(name),img=elements.get(name).querySelector('.species-image');
  const box=img.getBoundingClientRect(),board=$('board').getBoundingClientRect();
  // object-fit:contain can leave empty space inside the image element.
- const ratio=img.naturalWidth&&img.naturalHeight?Math.min(box.width/img.naturalWidth,box.height/img.naturalHeight):1;
- const w=img.naturalWidth?img.naturalWidth*ratio:box.width,h=img.naturalHeight?img.naturalHeight*ratio:box.height;
+ const ratio=img.width&&img.height?Math.min(box.width/img.width,box.height/img.height):1;
+ const w=img.width?img.width*ratio:box.width,h=img.height?img.height*ratio:box.height;
  return {x:box.left-board.left+(box.width-w)/2,y:box.top-board.top+(box.height-h)/2,w,h};
 }
 let requestedSize=100,sizeFrame;
@@ -38,7 +45,7 @@ function capacity(width,height){
 }
 function setCardSize(percent){
  const scale=percent/100,board=$('board');W=117.5*scale;H=107.5*scale;
- for(const [key,value] of Object.entries({'card-width':W,'card-height':H,'image-width':107.5*scale,'image-height':70*scale,'card-font':10*scale,'card-padding':3*scale}))board.style.setProperty('--'+key,value+'px');
+ for(const [key,value] of Object.entries({'card-width':W,'card-height':H,'image-width':107.5*scale,'image-height':101.5*scale,'card-font':10*scale,'card-padding':3*scale}))board.style.setProperty('--'+key,value+'px');
  $('card-size').value=percent;$('size-value').textContent=percent+'%';
 }
 function nearbyLayout(width,height,w,h){
@@ -82,7 +89,7 @@ $('card-size').addEventListener('input',()=>{
 });
 function showDetails(name){
  const item=species.find(s=>s.name===name),panel=$('details');if(!item)return;
- const picture=document.createElement('div');picture.className='detail-image';const img=document.createElement('img');img.src=item.big;img.alt=name;img.addEventListener('error',()=>{const hint=document.createElement('span');hint.className='image-error';hint.textContent='放大圖暫時無法載入';picture.replaceChildren(hint);});picture.append(img);
+ const picture=document.createElement('div');picture.className='detail-image';picture.append(createSpeciesPicture(item));
  const content=document.createElement('div');content.className='detail-content';const label=document.createElement('span');label.className='eyebrow';label.textContent='河口圖卡';const title=document.createElement('h2');title.textContent=name;content.append(label,title);
  const sections=item.sections.length?item.sections:[{label:'詳細介紹',text:'介紹檔中尚未找到這張圖卡的資料。'}];
  for(const section of sections){const block=document.createElement('section');block.className='detail-section';block.dataset.label=section.label;const h=document.createElement('h3');h.textContent=section.label;const p=document.createElement('p');appendInline(p,section.text);block.append(h,p);content.append(block);}
@@ -137,9 +144,10 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')cancel();});
 window.addEventListener('resize',()=>{if(!initialized)return;clearTimeout(resizeTimer);resizeTimer=setTimeout(resizeBoard,180);});
 async function init(){
  $('loading').hidden=false;$('loading').textContent='正在載入河口圖卡…';$('shuffle').disabled=true;
- try{species=await loadSpecies();if(!species.length)throw new Error('small 資料夾中沒有 PNG 圖卡。');
+ try{species=await loadSpecies();if(!species.length)throw new Error('介紹檔中沒有圖卡清單。');
+  await Promise.all(species.map(async item=>{item.bitmap=await loadSpeciesImage(item);}));
   $('cards').replaceChildren();elements.clear();positions.clear();model.clear();
-  for(const item of species){const el=document.createElement('button');el.className='card';el.type='button';el.setAttribute('aria-label',`選取${item.name}`);const img=document.createElement('img');img.src=item.small;img.alt='';img.draggable=false;el.append(img);
+  for(const item of species){const el=document.createElement('button');el.className='card';el.type='button';el.setAttribute('aria-label',`選取${item.name}`);const img=createSpeciesPicture(item);img.setAttribute('aria-hidden','true');el.append(img);
    el.addEventListener('pointerdown',e=>beginDrag(e,item.name));el.addEventListener('pointermove',moveDrag);el.addEventListener('pointerup',e=>{if(drag?.id===e.pointerId)endDrag();});el.addEventListener('pointercancel',()=>endDrag(true));el.addEventListener('lostpointercapture',()=>{if(drag?.name===item.name)endDrag(true);});
    el.addEventListener('click',e=>{if(e.detail===0&&!drag)select(item.name);});elements.set(item.name,el);$('cards').append(el);
   }

@@ -16,7 +16,7 @@ export async function loadSpecies(){
  const base=new URL('./docs/species/',document.baseURI);
  if(location.protocol==='file:'){
   if(typeof window.FOOD_WEB_MARKDOWN!=='string')throw new Error('離線介紹資料未載入，請確認 docs/species/offline-data.js 存在。');
-  return [...parseSpeciesMarkdown(window.FOOD_WEB_MARKDOWN)].map(([name,sections])=>({name,sections,small:new URL('small/'+encodeURIComponent(name+'.png'),base).href,big:new URL('big/'+encodeURIComponent(name+'.png'),base).href}));
+  return [...parseSpeciesMarkdown(window.FOOD_WEB_MARKDOWN)].map(([name,sections])=>({name,sections,image:new URL(encodeURIComponent(name+'.png'),base).href}));
  }
  const controller=new AbortController();
  const timeout=setTimeout(()=>controller.abort(),12000);
@@ -26,7 +26,20 @@ export async function loadSpecies(){
  finally{clearTimeout(timeout);}
  if(!response.ok)throw new Error('無法讀取介紹檔，請確認 docs/species 資料夾完整後重試。');
  const sections=parseSpeciesMarkdown(await response.text());
- return [...sections].map(([name,sections])=>({name,sections,small:new URL('small/'+encodeURIComponent(name+'.png'),base).href,big:new URL('big/'+encodeURIComponent(name+'.png'),base).href}));
+ return [...sections].map(([name,sections])=>({name,sections,image:new URL(encodeURIComponent(name+'.png'),base).href}));
+}
+const speciesImageCache=new Map();
+export function loadSpeciesImage(item){
+ if(!speciesImageCache.has(item.image)){
+  const pending=new Promise((resolve,reject)=>{
+   const image=new Image();
+   image.onload=()=>resolve(image);
+   image.onerror=()=>reject(new Error(`無法載入「${item.name}」圖卡，請確認 docs/species 中的同名 PNG。`));
+   image.src=item.image;
+  }).catch(error=>{speciesImageCache.delete(item.image);throw error;});
+  speciesImageCache.set(item.image,pending);
+ }
+ return speciesImageCache.get(item.image);
 }
 // Render only this document's inline Markdown; never interpret raw HTML.
 export function appendInline(parent,text){

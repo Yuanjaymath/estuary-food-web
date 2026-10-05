@@ -12,7 +12,7 @@ GitHub Pages：修改並上傳此 Markdown，重新整理網頁即可讀取最�
 
 雙擊本機首頁：瀏覽器不允許直接讀取任意本機 Markdown，所以網站使用從原檔產生的 offline-data.js。修改 Markdown 後，雙擊 docs/local/更新離線資料.cmd（需 Node.js）再重新開啟網頁。
 
-名稱依 `## 01｜小卷` 這類標題取得，每項對應 docs/species/small/名稱.png 及 docs/species/big/名稱.png。介紹不是人工重複維護在程式裡，離線副本由 Markdown 自動產生。
+名稱依 `## 01｜水中的氣體陽光和養分` 這類標題取得，每項只對應 docs/species/名稱.png。目前為新版24項圖卡；左右框架共用同一張已載入圖片，依框架大小縮放顯示。介紹不是人工重複維護在程式裡，離線副本由 Markdown 自動產生。
 
 ## GitHub Pages
 

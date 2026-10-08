@@ -121,6 +121,7 @@ function expandLayout(names,old,width,height,w,h){
 
 const $=id=>document.getElementById(id),model=new FoodWebModel(),positions=new Map(),elements=new Map();let species=[],drag=null,initialized=false,resizeTimer;
 let W=117.5,H=107.5;
+const fixedCard="水中的氣體陽光和養分";
 const activityOne=new Set(['水中的氣體陽光和養分','浮游植物','浮游動物','橈腳類','水筆仔','珠螺','花蛤','鵝茗荷','雙扇股窗蟹','彈塗魚','午仔魚','小燕鷗']);
 let allSpecies=[],activity=1;const savedPositions=new Map();
 function switchActivity(next){
@@ -132,7 +133,7 @@ function switchActivity(next){
  const previous=species;species=target;
  const max=capacity(width,height),percent=Math.min(requestedSize,max);
  let layout;
- try{layout=expandLayout(target.map(s=>s.name),savedPositions,width,height,117.5*percent/100,107.5*percent/100);}
+ try{const w=117.5*percent/100,h=107.5*percent/100;layout=expandLayout(target.map(s=>s.name),savedPositions,width,height,w,h);layout=nearbyLayout(width,height,w,h,layout);if(!layout)throw new Error("空間不足");}
  catch(error){species=previous;status('空間不足，請擴大視窗再切換活動。');return;}
  activity=next;setCardSize(percent);$('card-size').max=Math.max(65,max);
  positions.clear();for(const [name,p] of layout){positions.set(name,p);savedPositions.set(name,{...p});place(name);}
@@ -189,9 +190,11 @@ function setCardSize(percent){
  for(const [key,value] of Object.entries({'card-width':W,'card-height':H,'image-width':107.5*scale,'image-height':101.5*scale,'card-font':10*scale,'card-padding':3*scale}))board.style.setProperty('--'+key,value+'px');
  $('card-size').value=percent;$('size-value').textContent=percent+'%';
 }
-function nearbyLayout(width,height,w,h){
- const placed=[],result=new Map(),clamp=(n,max)=>Math.max(0,Math.min(max,n));
- for(const [name,p] of positions){
+function nearbyLayout(width,height,w,h,source=positions){
+ const pin={x:12,y:12,w,h};
+ const placed=[pin],result=new Map([[fixedCard,pin]]),clamp=(n,max)=>Math.max(0,Math.min(max,n));
+ for(const [name,p] of source){
+  if(name===fixedCard)continue;
   const x=clamp(p.x+(p.w-w)/2,width-w),y=clamp(p.y+(p.h-h)/2,height-h);
   const xs=new Set([x,0,width-w]),ys=new Set([y,0,height-h]);
   for(const q of placed){xs.add(clamp(q.x-w-1,width-w));xs.add(clamp(q.x+q.w+1,width-w));ys.add(clamp(q.y-h-1,height-h));ys.add(clamp(q.y+q.h+1,height-h));}
@@ -211,7 +214,16 @@ function arrange(){
  const max=capacity(width,height),percent=Math.min(requestedSize,max);
  $('card-size').max=Math.max(65,max);setCardSize(percent);
  const layout=layoutCards(species.length,width,height,W,H);
- species.forEach((s,i)=>{positions.set(s.name,layout[i]);place(s.name);});renderEdges();
+ let pinned=nearbyLayout(width,height,W,H,new Map(species.map((s,i)=>[s.name,layout[i]])));
+ if(!pinned){
+  for(let cols=1;cols<=species.length&&!pinned;cols++){
+   const rows=Math.ceil(species.length/cols);if(cols*(W+14)>width-24||rows*(H+14)>height-24)continue;
+   const ordered=[species.find(s=>s.name===fixedCard),...species.filter(s=>s.name!==fixedCard)];
+   pinned=new Map(ordered.map((s,i)=>[s.name,{x:12+(i%cols)*(W+14),y:12+Math.floor(i/cols)*(H+14),w:W,h:H}]));
+  }
+ }
+ if(!pinned){status("空間不足，請擴大視窗。");return;}
+ for(const [name,p] of pinned){positions.set(name,p);place(name);}renderEdges();
 }
 function resizeBoard(){
  if(drag)endDrag(true);
@@ -237,15 +249,16 @@ function showDetails(name){
  panel.replaceChildren(picture,content);panel.scrollTop=0;
 }
 function select(name){
+ if(name===fixedCard)return;
  selectedEdge=null;
- const first=model.pending,result=model.select(name);showDetails(name);update();
+ const first=model.pending,result=model.select(name);update();
  if(result==='first')status(`已選起點「${name}」，請點選另一張圖卡作為終點。`);
  if(result==='self')status('不能連到自己，請選另一張圖卡。');
  if(result==='duplicate')status('這條連線已經存在。請點選下一組的起點。');
  if(result==='added')status(`已建立「${first} → ${name}」。請點選下一組的起點。`);
 }
 function beginDrag(event,name){
- if(event.button!==0||drag)return;const p=positions.get(name);drag={name,id:event.pointerId,startX:event.clientX,startY:event.clientY,original:{...p},moved:false};elements.get(name).setPointerCapture(event.pointerId);
+ if(name===fixedCard||event.button!==0||drag)return;const p=positions.get(name);drag={name,id:event.pointerId,startX:event.clientX,startY:event.clientY,original:{...p},moved:false};elements.get(name).setPointerCapture(event.pointerId);
 }
 function moveDrag(event){
  if(!drag||event.pointerId!==drag.id)return;const dx=event.clientX-drag.startX,dy=event.clientY-drag.startY;
@@ -303,12 +316,13 @@ async function init(){
  $('loading').hidden=false;$('loading').textContent='正在載入河口圖卡清單…';$('shuffle').disabled=true;
  try{allSpecies=await loadSpecies();species=allSpecies.filter(s=>activityOne.has(s.name));activity=1;if(!species.length)throw new Error('介紹檔中沒有圖卡清單。');
   $('cards').replaceChildren();elements.clear();positions.clear();savedPositions.clear();model.clear();
-  for(const item of allSpecies){const el=document.createElement('button');el.className='card';el.hidden=!activityOne.has(item.name);el.type='button';el.disabled=true;el.setAttribute('aria-label',`選取${item.name}`);
+  for(const item of allSpecies){const el=document.createElement('button');el.className='card';el.hidden=!activityOne.has(item.name);el.type='button';el.disabled=true;el.setAttribute('aria-label',`選取${item.name}`);if(item.name===fixedCard){el.classList.add('fixed-card');el.title='固定圖卡：右鍵查看說明，不能拖曳或連線';}else el.title='左鍵連線；右鍵查看說明';
+   el.addEventListener('contextmenu',e=>{e.preventDefault();showDetails(item.name);});
    const placeholder=document.createElement('span');placeholder.className='species-image card-placeholder';placeholder.textContent=item.name+'\n等待下載…';el.append(placeholder);
    el.addEventListener('pointerdown',e=>beginDrag(e,item.name));el.addEventListener('pointermove',moveDrag);el.addEventListener('pointerup',e=>{if(drag?.id===e.pointerId)endDrag();});el.addEventListener('pointercancel',()=>endDrag(true));el.addEventListener('lostpointercapture',()=>{if(drag?.name===item.name)endDrag(true);});
    el.addEventListener('click',e=>{if(e.detail===0&&!drag)select(item.name);});elements.set(item.name,el);$('cards').append(el);
   }
-  arrange();initialized=true;$('loading').hidden=true;$('shuffle').disabled=false;update();updateLoadingProgress();status('活動1：圖卡會逐張顯示。點選起點，再點選終點；拖曳可調整位置。');
+  arrange();initialized=true;$('loading').hidden=true;$('shuffle').disabled=false;update();updateLoadingProgress();status('活動1：圖卡會逐張顯示。左鍵點選起點與終點；右鍵查看說明；拖曳可調整位置。');
   await downloadGroup(allSpecies.filter(s=>activityOne.has(s.name)),4,'high');
   await downloadGroup(allSpecies.filter(s=>!activityOne.has(s.name)),2,'low');
  }catch(error){$('loading').replaceChildren();const message=document.createElement('p');message.textContent=error.message;const retry=document.createElement('button');retry.textContent='重新載入';retry.onclick=init;$('loading').append(message,retry);status('資料載入失敗，請檢查檔案後重試。');}

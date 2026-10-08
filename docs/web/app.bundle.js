@@ -18,7 +18,7 @@ async function loadSpecies(){
  const base=new URL('./docs/species/',document.baseURI);
  if(location.protocol==='file:'){
   if(typeof window.FOOD_WEB_MARKDOWN!=='string')throw new Error('離線介紹資料未載入，請確認 docs/species/offline-data.js 存在。');
-  return [...parseSpeciesMarkdown(window.FOOD_WEB_MARKDOWN)].map(([name,sections])=>({name,sections,image:new URL(encodeURIComponent(name+'.webp'),base).href}));
+  return [...parseSpeciesMarkdown(window.FOOD_WEB_MARKDOWN)].map(([name,sections])=>({name,sections,image:new URL(encodeURIComponent(name+'.webp')+(name==='浮游植物'?'?v=20261008-new':''),base).href}));
  }
  const controller=new AbortController();
  const timeout=setTimeout(()=>controller.abort(),12000);
@@ -28,7 +28,7 @@ async function loadSpecies(){
  finally{clearTimeout(timeout);}
  if(!response.ok)throw new Error('無法讀取介紹檔，請確認 docs/species 資料夾完整後重試。');
  const sections=parseSpeciesMarkdown(await response.text());
- return [...sections].map(([name,sections])=>({name,sections,image:new URL(encodeURIComponent(name+'.webp'),base).href}));
+ return [...sections].map(([name,sections])=>({name,sections,image:new URL(encodeURIComponent(name+'.webp')+(name==='浮游植物'?'?v=20261008-new':''),base).href}));
 }
 const speciesImageCache=new Map();
 function loadSpeciesImage(item,priority="high"){

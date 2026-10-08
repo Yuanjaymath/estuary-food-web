@@ -34,3 +34,29 @@ export function arrowGeometry(a,b,reverse){
  }
  return `M ${start.x} ${start.y} Q ${cx} ${cy} ${end.x} ${end.y}`;
 }
+
+// Preserve existing cards first; use the nearest available grid slots only if necessary.
+export function expandLayout(names,old,width,height,w,h){
+ const clamp=(n,max)=>Math.max(0,Math.min(max,n)), result=new Map(), placed=[];
+ const existing=names.filter(n=>old.has(n)), added=names.filter(n=>!old.has(n));
+ for(const name of existing){const p=old.get(name),q={x:clamp(p.x+(p.w-w)/2,width-w),y:clamp(p.y+(p.h-h)/2,height-h),w,h};
+  if(placed.some(a=>overlaps(a,q)))break;result.set(name,q);placed.push(q);
+ }
+ if(result.size===existing.length){
+  for(const name of added){
+   const xs=new Set([0,width-w]),ys=new Set([0,height-h]);
+   for(const p of placed){xs.add(clamp(p.x-w-1,width-w));xs.add(clamp(p.x+p.w+1,width-w));ys.add(clamp(p.y-h-1,height-h));ys.add(clamp(p.y+p.h+1,height-h));}
+   const choices=[];for(const x of xs)for(const y of ys){const q={x,y,w,h};if(placed.every(p=>!overlaps(q,p)))choices.push(q);}
+   choices.sort((a,b)=>a.y-b.y||a.x-b.x);const q=choices[0];if(!q)break;result.set(name,q);placed.push(q);
+  }
+  if(result.size===names.length)return result;
+ }
+ // A guaranteed non-overlapping grid, assigned by proximity to the student's positions.
+ const slots=layoutCards(names.length,width,height,w,h,()=>.5);result.clear();
+ for(const name of [...existing,...added]){
+  const p=old.get(name);let best=0;
+  if(p)for(let i=1;i<slots.length;i++)if((slots[i].x-p.x)**2+(slots[i].y-p.y)**2<(slots[best].x-p.x)**2+(slots[best].y-p.y)**2)best=i;
+  result.set(name,slots.splice(best,1)[0]);
+ }
+ return result;
+}

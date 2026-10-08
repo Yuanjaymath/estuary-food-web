@@ -92,8 +92,56 @@ function arrowGeometry(a,b,reverse){
  return `M ${start.x} ${start.y} Q ${cx} ${cy} ${end.x} ${end.y}`;
 }
 
+// Preserve existing cards first; use the nearest available grid slots only if necessary.
+function expandLayout(names,old,width,height,w,h){
+ const clamp=(n,max)=>Math.max(0,Math.min(max,n)), result=new Map(), placed=[];
+ const existing=names.filter(n=>old.has(n)), added=names.filter(n=>!old.has(n));
+ for(const name of existing){const p=old.get(name),q={x:clamp(p.x+(p.w-w)/2,width-w),y:clamp(p.y+(p.h-h)/2,height-h),w,h};
+  if(placed.some(a=>overlaps(a,q)))break;result.set(name,q);placed.push(q);
+ }
+ if(result.size===existing.length){
+  for(const name of added){
+   const xs=new Set([0,width-w]),ys=new Set([0,height-h]);
+   for(const p of placed){xs.add(clamp(p.x-w-1,width-w));xs.add(clamp(p.x+p.w+1,width-w));ys.add(clamp(p.y-h-1,height-h));ys.add(clamp(p.y+p.h+1,height-h));}
+   const choices=[];for(const x of xs)for(const y of ys){const q={x,y,w,h};if(placed.every(p=>!overlaps(q,p)))choices.push(q);}
+   choices.sort((a,b)=>a.y-b.y||a.x-b.x);const q=choices[0];if(!q)break;result.set(name,q);placed.push(q);
+  }
+  if(result.size===names.length)return result;
+ }
+ // A guaranteed non-overlapping grid, assigned by proximity to the student's positions.
+ const slots=layoutCards(names.length,width,height,w,h,()=>.5);result.clear();
+ for(const name of [...existing,...added]){
+  const p=old.get(name);let best=0;
+  if(p)for(let i=1;i<slots.length;i++)if((slots[i].x-p.x)**2+(slots[i].y-p.y)**2<(slots[best].x-p.x)**2+(slots[best].y-p.y)**2)best=i;
+  result.set(name,slots.splice(best,1)[0]);
+ }
+ return result;
+}
+
 const $=id=>document.getElementById(id),model=new FoodWebModel(),positions=new Map(),elements=new Map();let species=[],drag=null,initialized=false,resizeTimer;
 let W=117.5,H=107.5;
+const activityOne=new Set(['水中的氣體陽光和養分','浮游植物','浮游動物','橈腳類','水筆仔','珠螺','花蛤','鵝茗荷','雙扇股窗蟹','彈塗魚','午仔魚','小燕鷗']);
+let allSpecies=[],activity=1;const savedPositions=new Map();
+function switchActivity(next){
+ if(!initialized||next===activity)return;
+ if(drag)endDrag(true);
+ for(const [name,p] of positions)savedPositions.set(name,{...p});
+ const target=next===1?allSpecies.filter(s=>activityOne.has(s.name)):allSpecies;
+ const view=$('viewport'),width=view.clientWidth,height=view.clientHeight;
+ const previous=species;species=target;
+ const max=capacity(width,height),percent=Math.min(requestedSize,max);
+ let layout;
+ try{layout=expandLayout(target.map(s=>s.name),savedPositions,width,height,117.5*percent/100,107.5*percent/100);}
+ catch(error){species=previous;status('空間不足，請擴大視窗再切換活動。');return;}
+ activity=next;setCardSize(percent);$('card-size').max=Math.max(65,max);
+ positions.clear();for(const [name,p] of layout){positions.set(name,p);savedPositions.set(name,{...p});place(name);}
+ for(const [name,el] of elements)el.hidden=!positions.has(name);
+ model.cancel();selectedEdge=null;update();
+ $('activity-1').setAttribute('aria-pressed',String(next===1));$('activity-2').setAttribute('aria-pressed',String(next===2));
+ status(`活動${next}：${species.length}項圖卡，所有已建立的連線均已保留。`);
+}
+$('activity-1').addEventListener('click',()=>switchActivity(1));
+$('activity-2').addEventListener('click',()=>switchActivity(2));
 let selectedEdge=null;
 const svgNS='http://www.w3.org/2000/svg';
 function status(message){$('status').textContent=message;}
@@ -236,14 +284,14 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')cancel();});
 window.addEventListener('resize',()=>{if(!initialized)return;clearTimeout(resizeTimer);resizeTimer=setTimeout(resizeBoard,180);});
 async function init(){
  $('loading').hidden=false;$('loading').textContent='正在載入河口圖卡…';$('shuffle').disabled=true;
- try{species=await loadSpecies();if(!species.length)throw new Error('介紹檔中沒有圖卡清單。');
-  await Promise.all(species.map(async item=>{item.bitmap=await loadSpeciesImage(item);}));
-  $('cards').replaceChildren();elements.clear();positions.clear();model.clear();
-  for(const item of species){const el=document.createElement('button');el.className='card';el.type='button';el.setAttribute('aria-label',`選取${item.name}`);const img=createSpeciesPicture(item);img.setAttribute('aria-hidden','true');el.append(img);
+ try{allSpecies=await loadSpecies();species=allSpecies.filter(s=>activityOne.has(s.name));activity=1;if(!species.length)throw new Error('介紹檔中沒有圖卡清單。');
+  await Promise.all(allSpecies.map(async item=>{item.bitmap=await loadSpeciesImage(item);}));
+  $('cards').replaceChildren();elements.clear();positions.clear();savedPositions.clear();model.clear();
+  for(const item of allSpecies){const el=document.createElement('button');el.className='card';el.hidden=!activityOne.has(item.name);el.type='button';el.setAttribute('aria-label',`選取${item.name}`);const img=createSpeciesPicture(item);img.setAttribute('aria-hidden','true');el.append(img);
    el.addEventListener('pointerdown',e=>beginDrag(e,item.name));el.addEventListener('pointermove',moveDrag);el.addEventListener('pointerup',e=>{if(drag?.id===e.pointerId)endDrag();});el.addEventListener('pointercancel',()=>endDrag(true));el.addEventListener('lostpointercapture',()=>{if(drag?.name===item.name)endDrag(true);});
    el.addEventListener('click',e=>{if(e.detail===0&&!drag)select(item.name);});elements.set(item.name,el);$('cards').append(el);
   }
-  arrange();initialized=true;$('loading').hidden=true;$('shuffle').disabled=false;update();status(`已載入 ${species.length} 張圖卡。點選起點，再點選終點；拖曳可調整位置。`);
+  arrange();initialized=true;$('loading').hidden=true;$('shuffle').disabled=false;update();status(`活動1：已載入 ${species.length} 張圖卡。點選起點，再點選終點；拖曳可調整位置。`);
  }catch(error){$('loading').replaceChildren();const message=document.createElement('p');message.textContent=error.message;const retry=document.createElement('button');retry.textContent='重新載入';retry.onclick=init;$('loading').append(message,retry);status('資料載入失敗，請檢查檔案後重試。');}
 }
 init();

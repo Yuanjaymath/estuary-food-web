@@ -7,3 +7,5 @@ body{min-height:0;overflow:hidden}#viewport{overflow:hidden}#board,#board.compac
 .edge-hit{fill:none;stroke:transparent;stroke-width:14;pointer-events:stroke;cursor:pointer}.edge-hit:hover,.edge-hit:focus-visible{stroke:#ff9d5433;outline:none}.edge.chosen{stroke-width:4;opacity:1}
 
 .card[hidden]{display:none}.activity-picker{display:flex;gap:10px;margin:0 22px}.activity-picker button[aria-pressed="true"]{border-color:var(--blue);background:#173143;color:#fff}.activity-picker button{white-space:nowrap}@media(max-width:650px){header{gap:10px;flex-wrap:wrap}.activity-picker{margin:0}.activity-picker button{font-size:12px}}
+
+.download-progress{font-size:11px;color:#9aafb8;max-width:270px}.card .card-placeholder{display:grid;place-content:center;text-align:center;white-space:pre-line;font-size:11px;color:#afc5cf}.card.load-failed .card-placeholder{color:#ffb08c}.download-progress button[hidden]{display:none}@media(max-width:900px){nav{flex-wrap:wrap}.download-progress{max-width:none}}

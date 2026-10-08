@@ -18,7 +18,7 @@ function switchActivity(next){
  activity=next;setCardSize(percent);$('card-size').max=Math.max(65,max);
  positions.clear();for(const [name,p] of layout){positions.set(name,p);savedPositions.set(name,{...p});place(name);}
  for(const [name,el] of elements)el.hidden=!positions.has(name);
- model.cancel();selectedEdge=null;update();
+ model.cancel();selectedEdge=null;update();updateLoadingProgress();
  $('activity-1').setAttribute('aria-pressed',String(next===1));$('activity-2').setAttribute('aria-pressed',String(next===2));
  status(`活動${next}：${species.length}項圖卡，所有已建立的連線均已保留。`);
 }
@@ -164,17 +164,34 @@ document.addEventListener('fullscreenchange',()=>{
 });
 document.addEventListener('keydown',e=>{if(e.key==='Escape')cancel();});
 window.addEventListener('resize',()=>{if(!initialized)return;clearTimeout(resizeTimer);resizeTimer=setTimeout(resizeBoard,180);});
+function updateLoadingProgress(){
+ const ready=species.filter(s=>s.bitmap).length,failed=allSpecies.filter(s=>s.failed).length;
+ $('load-progress').textContent=ready<species.length?`活動${activity}圖卡：${ready}/${species.length}，已顯示的圖卡可先操作`:allSpecies.some(s=>!s.bitmap&&!s.failed)?`活動${activity}圖卡已就緒；其餘圖卡背景下載中`:`活動${activity}圖卡：${ready}/${species.length}`;
+ $('retry-images').hidden=!failed;$('retry-images').textContent=`重試 ${failed} 張圖卡`;
+}
+async function downloadCard(item,priority){
+ if(item.bitmap||item.downloading)return;
+ item.downloading=true;item.failed=false;const el=elements.get(item.name);el.classList.remove('load-failed');el.querySelector('.card-placeholder').textContent=item.name+'\n下載中…';
+ try{item.bitmap=await loadSpeciesImage(item,priority);const img=createSpeciesPicture(item);img.setAttribute('aria-hidden','true');el.replaceChildren(img);el.disabled=false;renderEdges();}
+ catch(error){item.failed=true;el.classList.add('load-failed');el.querySelector('.card-placeholder').textContent=item.name+'\n下載失敗';el.title=error.message;}
+ finally{item.downloading=false;updateLoadingProgress();}
+}
+async function downloadGroup(items,concurrency,priority){
+ let cursor=0;await Promise.all(Array.from({length:Math.min(concurrency,items.length)},async()=>{while(cursor<items.length)await downloadCard(items[cursor++],priority);}));
+}
+$('retry-images').addEventListener('click',async()=>{const retry=$('retry-images');retry.disabled=true;await downloadGroup(allSpecies.filter(s=>s.failed),4,'high');retry.disabled=false;});
 async function init(){
- $('loading').hidden=false;$('loading').textContent='正在載入河口圖卡…';$('shuffle').disabled=true;
+ $('loading').hidden=false;$('loading').textContent='正在載入河口圖卡清單…';$('shuffle').disabled=true;
  try{allSpecies=await loadSpecies();species=allSpecies.filter(s=>activityOne.has(s.name));activity=1;if(!species.length)throw new Error('介紹檔中沒有圖卡清單。');
-  await Promise.all(allSpecies.map(async item=>{item.bitmap=await loadSpeciesImage(item);}));
   $('cards').replaceChildren();elements.clear();positions.clear();savedPositions.clear();model.clear();
-  for(const item of allSpecies){const el=document.createElement('button');el.className='card';el.hidden=!activityOne.has(item.name);el.type='button';el.setAttribute('aria-label',`選取${item.name}`);const img=createSpeciesPicture(item);img.setAttribute('aria-hidden','true');el.append(img);
+  for(const item of allSpecies){const el=document.createElement('button');el.className='card';el.hidden=!activityOne.has(item.name);el.type='button';el.disabled=true;el.setAttribute('aria-label',`選取${item.name}`);
+   const placeholder=document.createElement('span');placeholder.className='species-image card-placeholder';placeholder.textContent=item.name+'\n等待下載…';el.append(placeholder);
    el.addEventListener('pointerdown',e=>beginDrag(e,item.name));el.addEventListener('pointermove',moveDrag);el.addEventListener('pointerup',e=>{if(drag?.id===e.pointerId)endDrag();});el.addEventListener('pointercancel',()=>endDrag(true));el.addEventListener('lostpointercapture',()=>{if(drag?.name===item.name)endDrag(true);});
    el.addEventListener('click',e=>{if(e.detail===0&&!drag)select(item.name);});elements.set(item.name,el);$('cards').append(el);
   }
-  arrange();initialized=true;$('loading').hidden=true;$('shuffle').disabled=false;update();status(`活動1：已載入 ${species.length} 張圖卡。點選起點，再點選終點；拖曳可調整位置。`);
+  arrange();initialized=true;$('loading').hidden=true;$('shuffle').disabled=false;update();updateLoadingProgress();status('活動1：圖卡會逐張顯示。點選起點，再點選終點；拖曳可調整位置。');
+  await downloadGroup(allSpecies.filter(s=>activityOne.has(s.name)),4,'high');
+  await downloadGroup(allSpecies.filter(s=>!activityOne.has(s.name)),2,'low');
  }catch(error){$('loading').replaceChildren();const message=document.createElement('p');message.textContent=error.message;const retry=document.createElement('button');retry.textContent='重新載入';retry.onclick=init;$('loading').append(message,retry);status('資料載入失敗，請檢查檔案後重試。');}
 }
 init();
-

@@ -11,3 +11,8 @@ body{min-height:0;overflow:hidden}#viewport{overflow:hidden}#board,#board.compac
 .download-progress{font-size:11px;color:#9aafb8;max-width:270px}.card .card-placeholder{display:grid;place-content:center;text-align:center;white-space:pre-line;font-size:11px;color:#afc5cf}.card.load-failed .card-placeholder{color:#ffb08c}.download-progress button[hidden]{display:none}@media(max-width:900px){nav{flex-wrap:wrap}.download-progress{max-width:none}}
 
 .card.fixed-card{cursor:help}.card.fixed-card:focus-visible .species-image{filter:drop-shadow(0 0 5px var(--blue))}
+
+.view-details{width:100%;white-space:normal;line-height:1.6;border-color:var(--blue);background:#173143;min-height:48px;font-size:15px}.detail-hint{font-size:12px;line-height:1.8;color:#a3b8c2}
+
+/* 活動按鈕緊接標題，尺寸及文字為原來的兩倍。 */
+header{justify-content:flex-start;flex-wrap:wrap}.heading{flex-shrink:0}.activity-picker{margin:0 0 0 100px;gap:20px;flex-shrink:0}.activity-picker button{font-size:26px;padding:18px 26px;border-width:2px;border-radius:12px}.legend{margin-left:auto}@media(max-width:1100px){.legend{display:none}}@media(max-width:760px){.activity-picker{margin-left:0}header{gap:18px}.activity-picker button{font-size:26px}}@media(max-width:450px){.activity-picker{gap:12px;flex-wrap:wrap;flex-shrink:1}}

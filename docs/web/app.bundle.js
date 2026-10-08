@@ -248,8 +248,17 @@ function showDetails(name){
  for(const section of sections){const block=document.createElement('section');block.className='detail-section';block.dataset.label=section.label;const h=document.createElement('h3');h.textContent=section.label;const p=document.createElement('p');appendInline(p,section.text);block.append(h,p);content.append(block);}
  panel.replaceChildren(picture,content);panel.scrollTop=0;
 }
+function offerDetails(name){
+ const panel=$('details'),content=document.createElement('div');content.className='detail-content';
+ const title=document.createElement('h2');title.textContent=name;
+ const button=document.createElement('button');button.type='button';button.className='view-details';button.textContent=`查看${name}詳細內容`;
+ button.addEventListener('click',()=>{if(drag)endDrag(true);selectedEdge=null;model.cancel();update();showDetails(name);status(`正在查看「${name}」的詳細內容，已取消起點與選取；已建立的連線保留。`);});
+ const hint=document.createElement('p');hint.className='detail-hint';hint.textContent='查看詳細內容會取消目前的起點與選取，已建立的連線保留。';
+ content.append(title,button,hint);panel.replaceChildren(content);panel.scrollTop=0;
+}
 function select(name){
- if(name===fixedCard)return;
+ offerDetails(name);
+ if(name===fixedCard){status('此圖卡不能連線或拖曳；按右側按鈕查看詳細內容。');return;}
  selectedEdge=null;
  const first=model.pending,result=model.select(name);update();
  if(result==='first')status(`已選起點「${name}」，請點選另一張圖卡作為終點。`);
@@ -316,13 +325,12 @@ async function init(){
  $('loading').hidden=false;$('loading').textContent='正在載入河口圖卡清單…';$('shuffle').disabled=true;
  try{allSpecies=await loadSpecies();species=allSpecies.filter(s=>activityOne.has(s.name));activity=1;if(!species.length)throw new Error('介紹檔中沒有圖卡清單。');
   $('cards').replaceChildren();elements.clear();positions.clear();savedPositions.clear();model.clear();
-  for(const item of allSpecies){const el=document.createElement('button');el.className='card';el.hidden=!activityOne.has(item.name);el.type='button';el.disabled=true;el.setAttribute('aria-label',`選取${item.name}`);if(item.name===fixedCard){el.classList.add('fixed-card');el.title='固定圖卡：右鍵查看說明，不能拖曳或連線';}else el.title='左鍵連線；右鍵查看說明';
-   el.addEventListener('contextmenu',e=>{e.preventDefault();showDetails(item.name);});
+  for(const item of allSpecies){const el=document.createElement('button');el.className='card';el.hidden=!activityOne.has(item.name);el.type='button';el.disabled=true;el.setAttribute('aria-label',`選取${item.name}`);if(item.name===fixedCard){el.classList.add('fixed-card');el.title='固定圖卡：點選後按右側按鈕查看說明，不能拖曳或連線';}else el.title='點選連線；按右側按鈕查看說明';
    const placeholder=document.createElement('span');placeholder.className='species-image card-placeholder';placeholder.textContent=item.name+'\n等待下載…';el.append(placeholder);
    el.addEventListener('pointerdown',e=>beginDrag(e,item.name));el.addEventListener('pointermove',moveDrag);el.addEventListener('pointerup',e=>{if(drag?.id===e.pointerId)endDrag();});el.addEventListener('pointercancel',()=>endDrag(true));el.addEventListener('lostpointercapture',()=>{if(drag?.name===item.name)endDrag(true);});
-   el.addEventListener('click',e=>{if(e.detail===0&&!drag)select(item.name);});elements.set(item.name,el);$('cards').append(el);
+   el.addEventListener('click',e=>{if((e.detail===0||item.name===fixedCard)&&!drag)select(item.name);});elements.set(item.name,el);$('cards').append(el);
   }
-  arrange();initialized=true;$('loading').hidden=true;$('shuffle').disabled=false;update();updateLoadingProgress();status('活動1：圖卡會逐張顯示。左鍵點選起點與終點；右鍵查看說明；拖曳可調整位置。');
+  arrange();initialized=true;$('loading').hidden=true;$('shuffle').disabled=false;update();updateLoadingProgress();status('活動1：圖卡會逐張顯示。左鍵點選起點與終點；右側按鈕查看說明；拖曳可調整位置。');
   await downloadGroup(allSpecies.filter(s=>activityOne.has(s.name)),4,'high');
   await downloadGroup(allSpecies.filter(s=>!activityOne.has(s.name)),2,'low');
  }catch(error){$('loading').replaceChildren();const message=document.createElement('p');message.textContent=error.message;const retry=document.createElement('button');retry.textContent='重新載入';retry.onclick=init;$('loading').append(message,retry);status('資料載入失敗，請檢查檔案後重試。');}
